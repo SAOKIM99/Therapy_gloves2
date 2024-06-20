@@ -8,6 +8,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include <BLE2902.h>
 
 #define SERVICE_UUID "e48f8c7f-9b2a-432e-912e-14caa051237a"
 #define CHARACTERISTIC_UUID "45cc01fe-1705-4c3f-bbba-ae5bd83255f7"
@@ -16,7 +17,7 @@ BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristic = NULL;
 bool deviceConnected = false;
 
-static void checkTypeBLE(int type, int leftHand[5], int _min, int _secs);
+static void checkTypeBLE(int type, int leftHand[5], int rightHand[5], int _min, int _secs);
 void buttonCallback();
 
 
@@ -90,7 +91,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
       Serial.printf("Mins: %d\n", mins);
       Serial.printf("Secs: %d\n", secs);
 
-      checkTypeBLE(type, leftHand, mins, secs);
+      checkTypeBLE(type, leftHand, rightHand, mins, secs);
     }
   }
 };
@@ -204,7 +205,7 @@ struct Human {
 
 struct Human person;
 
-static void checkTypeBLE(int type, int leftHand[5], int _min, int _secs) {
+static void checkTypeBLE(int type, int leftHand[5], int rightHand[5], int _min, int _secs) {
   // type 
   // 0: Left Hand
   // 1: Righ Hand
@@ -322,23 +323,11 @@ static void checkTypeBLE(int type, int leftHand[5], int _min, int _secs) {
       break;
 
     case 5:
-      if(leftHand[0] == 1)
-        person.left_hand.fingers[0].state = ACTIVE;
-      if(leftHand[1] == 1)
-        person.left_hand.fingers[1].state = ACTIVE;
-      if(leftHand[2] == 1)
-        person.left_hand.fingers[2].state = ACTIVE;
-      if(leftHand[3] == 1)
-        person.left_hand.fingers[3].state = ACTIVE;
-      if(leftHand[4] == 1)
-        person.left_hand.fingers[4].state = ACTIVE;
-
-        // person.right_hand.fingers[0].state = ACTIVE;
-        // person.right_hand.fingers[1].state = ACTIVE;
-        // person.right_hand.fingers[2].state = ACTIVE;
-        // person.right_hand.fingers[3].state = ACTIVE;
-        // person.right_hand.fingers[4].state = ACTIVE;
-
+    for (size_t i = 0; i < 5; i++)
+    {
+        person.left_hand.fingers[i].state = leftHand[i] == 1 ? ACTIVE : INACTIVE;
+        person.right_hand.fingers[i].state = rightHand[i] == 1 ? ACTIVE : INACTIVE;
+    }
       onBLE = true;
       button4state = 0;
       currentScreen = 4;
@@ -354,6 +343,7 @@ static void checkTypeBLE(int type, int leftHand[5], int _min, int _secs) {
 
       // currentScreen = 5;
       buttonCallback();
+
       break;
   
   default:
@@ -453,6 +443,13 @@ void buttonCallback(){
 // void IRAM_ATTR buttonCallback(){
   // Serial.println("buttonCallback");
   if(currentScreen == 5){
+    if (deviceConnected)
+    {
+      uint8_t stop = 0;
+      pCharacteristic->setValue(&stop, 1);
+      pCharacteristic->notify();
+    }
+    
     if(millis()-last>=300){
       if (buttonpress == 0){
         buttonpress = 1;
@@ -1252,6 +1249,7 @@ void setup() {
           BLECharacteristic::PROPERTY_NOTIFY);
 
   pCharacteristic->setCallbacks(new MyCallbacks());
+  pCharacteristic->addDescriptor(new BLE2902());
 
   pCharacteristic->setValue("Therapy Gloves");
   pService->start();
